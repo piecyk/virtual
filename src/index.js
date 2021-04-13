@@ -6,6 +6,8 @@ import useIsomorphicLayoutEffect from './useIsomorphicLayoutEffect'
 const defaultEstimateSize = () => 50
 const defaultKeyExtractor = index => index
 
+const ResetScrollingTimeoutDelay = 200
+
 export function useVirtual({
   size = 0,
   estimateSize = defaultEstimateSize,
@@ -24,6 +26,15 @@ export function useVirtual({
   const scrollKey = horizontal ? 'scrollLeft' : 'scrollTop'
   const latestRef = React.useRef({})
   const useMeasureParent = useObserver || useRect
+
+  const isMountedRef = React.useRef(false)
+
+  useIsomorphicLayoutEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const { [sizeKey]: outerSize } = useMeasureParent(parentRef) || {
     [sizeKey]: 0,
@@ -51,6 +62,17 @@ export function useVirtual({
 
   const measure = React.useCallback(() => setMeasuredCache({}), [])
 
+  const mountedEstimateSizeRef = React.useRef(false)
+
+  useIsomorphicLayoutEffect(() => {
+    if (mountedEstimateSizeRef.current) {
+      if (estimateSize) {
+        setMeasuredCache({})
+      }
+    }
+    mountedEstimateSizeRef.current = true
+  }, [estimateSize])
+
   const measurements = React.useMemo(() => {
     const measurements = []
     for (let i = 0; i < size; i++) {
@@ -71,6 +93,21 @@ export function useVirtual({
   latestRef.current.outerSize = outerSize
   latestRef.current.totalSize = totalSize
 
+  const [isScrolling, setIsScrolling] = React.useState(false)
+  const scrollingIdRef = React.useRef(null)
+  const debouncedResetScrollingRef = React.useRef(() => {
+    if (scrollingIdRef.current !== null) {
+      window.clearTimeout(scrollingIdRef.current)
+    }
+
+    scrollingIdRef.current = window.setTimeout(() => {
+      scrollingIdRef.current = null
+
+      if (isMountedRef.current) {
+        setIsScrolling(false)
+      }
+    }, ResetScrollingTimeoutDelay)
+  })
   const [range, setRange] = React.useState({ start: 0, end: 0 })
 
   const element = onScrollElement ? onScrollElement.current : parentRef.current
@@ -92,6 +129,10 @@ export function useVirtual({
         : element[scrollKey]
       latestRef.current.scrollOffset = scrollOffset
 
+      if (event) {
+        setIsScrolling(true)
+        debouncedResetScrollingRef.current()
+      }
       setRange(prevRange => calculateRange(latestRef.current, prevRange))
     }
 
@@ -107,6 +148,12 @@ export function useVirtual({
       element.removeEventListener('scroll', onScroll)
     }
   }, [element, scrollKey, size, outerSize])
+
+  useIsomorphicLayoutEffect(() => {
+    if (!isScrolling && latestRef.current.scrollOffset !== undefined) {
+      setRange(prevRange => calculateRange(latestRef.current, prevRange))
+    }
+  }, [isScrolling, measurements])
 
   const virtualItems = React.useMemo(() => {
     const virtualItems = []
@@ -149,15 +196,6 @@ export function useVirtual({
     defaultScrollToFn,
     keyExtractor,
   ])
-
-  const mountedRef = React.useRef()
-
-  useIsomorphicLayoutEffect(() => {
-    if (mountedRef.current) {
-      if (estimateSize) setMeasuredCache({})
-    }
-    mountedRef.current = true
-  }, [estimateSize])
 
   const scrollToOffset = React.useCallback(
     (toOffset, { align = 'start' } = {}) => {
@@ -237,6 +275,7 @@ export function useVirtual({
     scrollToOffset,
     scrollToIndex,
     measure,
+    isScrolling,
   }
 }
 
