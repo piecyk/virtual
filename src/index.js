@@ -2,6 +2,7 @@ import React from 'react'
 
 import useRect from './useRect'
 import useIsomorphicLayoutEffect from './useIsomorphicLayoutEffect'
+import { requestTimeout, cancelTimeout } from './timer'
 
 const defaultEstimateSize = () => 50
 const defaultKeyExtractor = index => index
@@ -97,10 +98,10 @@ export function useVirtual({
   const scrollingIdRef = React.useRef(null)
   const debouncedResetScrollingRef = React.useRef(() => {
     if (scrollingIdRef.current !== null) {
-      window.clearTimeout(scrollingIdRef.current)
+      cancelTimeout(scrollingIdRef.current)
     }
 
-    scrollingIdRef.current = window.setTimeout(() => {
+    scrollingIdRef.current = requestTimeout(() => {
       scrollingIdRef.current = null
 
       if (isMountedRef.current) {
