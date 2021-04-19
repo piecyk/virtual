@@ -111,6 +111,12 @@ export function useVirtual({
   })
   const [range, setRange] = React.useState({ start: 0, end: 0 })
 
+  useIsomorphicLayoutEffect(() => {
+    if (!isScrolling && latestRef.current.scrollOffset !== undefined) {
+      setRange(prevRange => calculateRange(latestRef.current, prevRange))
+    }
+  }, [isScrolling, outerSize, overscan, measurements])
+
   const element = onScrollElement ? onScrollElement.current : parentRef.current
 
   const scrollOffsetFnRef = React.useRef(scrollOffsetFn)
@@ -148,13 +154,7 @@ export function useVirtual({
     return () => {
       element.removeEventListener('scroll', onScroll)
     }
-  }, [element, scrollKey, size, outerSize])
-
-  useIsomorphicLayoutEffect(() => {
-    if (!isScrolling && latestRef.current.scrollOffset !== undefined) {
-      setRange(prevRange => calculateRange(latestRef.current, prevRange))
-    }
-  }, [isScrolling, measurements])
+  }, [element, scrollKey])
 
   const virtualItems = React.useMemo(() => {
     const virtualItems = []

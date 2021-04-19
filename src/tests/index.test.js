@@ -2,7 +2,7 @@ import '@testing-library/jest-dom'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import * as React from 'react'
 
-import { useVirtual } from '../index'
+import { useVirtual as useVirtualImpl } from '../index'
 
 function List({
   size = 200,
@@ -11,6 +11,7 @@ function List({
   width = 200,
   onRef,
   parentRef,
+  useVirtual,
 }) {
   const rowVirtualizer = useVirtual({
     size,
@@ -59,19 +60,32 @@ function List({
 }
 
 describe('useVirtual list', () => {
+  let useVirtual, parentRef, props
+
+  beforeEach(() => {
+    parentRef = React.createRef()
+    useVirtual = jest.fn(props => useVirtualImpl(props))
+
+    props = { parentRef, useVirtual }
+  })
+
   it('should render', () => {
-    render(<List parentRef={React.createRef()} />)
+    render(<List {...props} />)
 
     expect(screen.queryByText('Row 0')).toBeInTheDocument()
     expect(screen.queryByText('Row 4')).toBeInTheDocument()
     expect(screen.queryByText('Row 5')).not.toBeInTheDocument()
+
+    expect(useVirtual).toHaveBeenCalledTimes(3)
   })
   it('should render with overscan', () => {
-    render(<List overscan={0} parentRef={React.createRef()} />)
+    render(<List {...props} overscan={0} />)
 
     expect(screen.queryByText('Row 0')).toBeInTheDocument()
     expect(screen.queryByText('Row 3')).toBeInTheDocument()
     expect(screen.queryByText('Row 4')).not.toBeInTheDocument()
+
+    expect(useVirtual).toHaveBeenCalledTimes(3)
   })
   it('should render given dynamic size', () => {
     const onRef = virtualRow => el => {
@@ -83,11 +97,13 @@ describe('useVirtual list', () => {
       virtualRow.measureRef(el)
     }
 
-    render(<List onRef={onRef} parentRef={React.createRef()} />)
+    render(<List {...props} onRef={onRef} />)
 
     expect(screen.queryByText('Row 0')).toBeInTheDocument()
     expect(screen.queryByText('Row 6')).toBeInTheDocument()
     expect(screen.queryByText('Row 7')).not.toBeInTheDocument()
+
+    expect(useVirtual).toHaveBeenCalledTimes(7)
   })
   it('should render given dynamic size after scroll', () => {
     const onRef = virtualRow => el => {
@@ -98,9 +114,8 @@ describe('useVirtual list', () => {
       }
       virtualRow.measureRef(el)
     }
-    const parentRef = React.createRef()
 
-    render(<List onRef={onRef} parentRef={parentRef} />)
+    render(<List {...props} onRef={onRef} />)
 
     expect(screen.queryByText('Row 0')).toBeInTheDocument()
     expect(screen.queryByText('Row 6')).toBeInTheDocument()
@@ -130,7 +145,7 @@ describe('useVirtual list', () => {
       measureCache[virtualRow.index]()
     }
 
-    render(<List height={100} onRef={onRef} parentRef={React.createRef()} />)
+    render(<List {...props} height={100} onRef={onRef} />)
 
     expect(screen.queryByText('Row 0')).toBeInTheDocument()
     expect(screen.queryByText('Row 4')).toBeInTheDocument()
