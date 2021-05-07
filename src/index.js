@@ -89,7 +89,6 @@ export function useVirtual({
 
   const totalSize = (measurements[size - 1]?.end || 0) + paddingEnd
 
-  latestRef.current.overscan = overscan
   latestRef.current.measurements = measurements
   latestRef.current.outerSize = outerSize
   latestRef.current.totalSize = totalSize
@@ -115,7 +114,7 @@ export function useVirtual({
     if (!isScrolling && latestRef.current.scrollOffset !== undefined) {
       setRange(prevRange => calculateRange(latestRef.current, prevRange))
     }
-  }, [isScrolling, outerSize, overscan, measurements])
+  }, [isScrolling, outerSize, measurements])
 
   const element = onScrollElement ? onScrollElement.current : parentRef.current
 
@@ -158,13 +157,16 @@ export function useVirtual({
 
   const virtualItems = React.useMemo(() => {
     const virtualItems = []
-    const end = Math.min(range.end, measurements.length - 1)
 
-    for (let i = range.start; i <= end; i++) {
+    const start = Math.max(range.start - overscan, 0)
+    const end = Math.min(range.end + overscan, measurements.length - 1)
+
+    for (let i = start; i <= end; i++) {
       const measurement = measurements[i]
 
       const item = {
         ...measurement,
+        isVisible: i >= range.start && i <= range.end,
         measureRef: el => {
           const { scrollOffset } = latestRef.current
 
@@ -190,6 +192,7 @@ export function useVirtual({
 
     return virtualItems
   }, [
+    overscan,
     range.start,
     range.end,
     measurements,
@@ -301,10 +304,7 @@ const findNearestBinarySearch = (low, high, getCurrentValue, value) => {
   }
 }
 
-function calculateRange(
-  { overscan, measurements, outerSize, scrollOffset },
-  prevRange
-) {
+function calculateRange({ measurements, outerSize, scrollOffset }, prevRange) {
   const size = measurements.length - 1
   const getOffset = index => measurements[index].start
 
@@ -314,9 +314,6 @@ function calculateRange(
   while (end < size && measurements[end].end < scrollOffset + outerSize) {
     end++
   }
-
-  start = Math.max(start - overscan, 0)
-  end = Math.min(end + overscan, size)
 
   if (!prevRange || prevRange.start !== start || prevRange.end !== end) {
     return { start, end }
