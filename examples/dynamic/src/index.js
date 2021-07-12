@@ -3,7 +3,7 @@ import ReactDOM from "react-dom";
 
 import "./styles.css";
 
-import { useVirtual } from "react-virtual";
+import { useVirtual, defaultRangeExtractor } from "../../../";
 
 function App() {
   const rows = new Array(10000)
@@ -41,10 +41,19 @@ function App() {
 
 function RowVirtualizerDynamic({ rows }) {
   const parentRef = React.useRef();
+  const cachedRef = React.useRef(new Set());
 
   const rowVirtualizer = useVirtual({
     size: rows.length,
-    parentRef
+    parentRef,
+    rangeExtractor: React.useCallback(range => {
+      cachedRef.current = new Set([
+        ...cachedRef.current,
+        ...defaultRangeExtractor(range)
+      ]);
+
+      return [...cachedRef.current];
+    }, [])
   });
 
   return (

@@ -16,6 +16,15 @@ export type VirtualItem = {
   isVisible: boolean
 }
 
+export interface Range {
+  start: number
+  end: number
+  overscan: number
+  size: number
+}
+
+declare function defaultRangeExtractor(range: Range): number[]
+
 declare function useVirtual<T>(options: {
   size: number
   parentRef: React.RefObject<T>
@@ -38,6 +47,7 @@ declare function useVirtual<T>(options: {
   keyExtractor?: (index: number) => number | string
   onScrollElement?: React.RefObject<HTMLElement>
   scrollOffsetFn?: (event?: Event) => number
+  rangeExtractor?: (range: Range) => number[]
 }): {
   virtualItems: VirtualItem[]
   totalSize: number
@@ -46,4 +56,4 @@ declare function useVirtual<T>(options: {
   measure: () => void
 }
 
-export { useVirtual }
+export { defaultRangeExtractor, useVirtual }

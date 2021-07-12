@@ -13,6 +13,19 @@ const defaultMeasureSize = (el, horizontal) => {
   return el[key]
 }
 
+export const defaultRangeExtractor = range => {
+  const start = Math.max(range.start - range.overscan, 0)
+  const end = Math.min(range.end + range.overscan, range.size)
+
+  const arr = []
+
+  for (let i = start; i <= end; i++) {
+    arr.push(i)
+  }
+
+  return arr
+}
+
 export function useVirtual({
   size = 0,
   estimateSize = defaultEstimateSize,
@@ -27,6 +40,7 @@ export function useVirtual({
   scrollOffsetFn,
   keyExtractor = defaultKeyExtractor,
   measureSize = defaultMeasureSize,
+  rangeExtractor = defaultRangeExtractor,
 }) {
   const sizeKey = horizontal ? 'width' : 'height'
   const scrollKey = horizontal ? 'scrollLeft' : 'scrollTop'
@@ -121,10 +135,15 @@ export function useVirtual({
   const virtualItems = React.useMemo(() => {
     const virtualItems = []
 
-    const start = Math.max(range.start - overscan, 0)
-    const end = Math.min(range.end + overscan, measurements.length - 1)
+    const arr = rangeExtractor({
+      start: range.start,
+      end: range.end,
+      overscan,
+      size: measurements.length - 1,
+    })
 
-    for (let i = start; i <= end; i++) {
+    for (let k = 0, len = arr.length; k < len; k++) {
+      const i = arr[k]
       const measurement = measurements[i]
 
       const item = {
@@ -162,6 +181,7 @@ export function useVirtual({
     horizontal,
     defaultScrollToFn,
     keyExtractor,
+    rangeExtractor,
   ])
 
   const mountedRef = React.useRef()
