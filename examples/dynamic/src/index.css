@@ -3,11 +3,6 @@ html {
   font-size: 14px;
 }
 
-.List {
-  border: 1px solid #e6e4dc;
-  max-width: 100%;
-}
-
 .ListItemEven,
 .ListItemOdd {
   display: flex;

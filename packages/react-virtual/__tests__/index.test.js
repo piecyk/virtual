@@ -76,7 +76,7 @@ test('should render', () => {
   expect(screen.queryByText('Row 4')).toBeInTheDocument()
   expect(screen.queryByText('Row 5')).not.toBeInTheDocument()
 
-  expect(useVirtual).toHaveBeenCalledTimes(1)
+  expect(useVirtual).toHaveBeenCalledTimes(3)
 })
 
 test('should render with overscan', () => {
@@ -86,7 +86,7 @@ test('should render with overscan', () => {
   expect(screen.queryByText('Row 3')).toBeInTheDocument()
   expect(screen.queryByText('Row 4')).not.toBeInTheDocument()
 
-  expect(useVirtual).toHaveBeenCalledTimes(1)
+  expect(useVirtual).toHaveBeenCalledTimes(3)
 })
 
 test('should render given dynamic size', async () => {
@@ -103,7 +103,7 @@ test('should render given dynamic size', async () => {
   await waitFor(() => expect(screen.queryByText('Row 8')).toBeInTheDocument())
   expect(screen.queryByText('Row 9')).not.toBeInTheDocument()
 
-  expect(useVirtual).toHaveBeenCalledTimes(4)
+  expect(useVirtual).toHaveBeenCalledTimes(8)
 })
 
 test('should render given dynamic size after scroll', async () => {
