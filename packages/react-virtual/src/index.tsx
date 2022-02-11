@@ -401,12 +401,68 @@ export const useVirtual = <T extends HTMLElement>({
         start,
         end,
         overscan,
-        size: measurements.length,
+        size,
       }),
-    [start, end, overscan, measurements.length, rangeExtractor],
+    [start, end, overscan, size, rangeExtractor],
   )
 
   const measureSizeRef = useLatestRef(measureSize)
+
+  const measureRefsRef = React.useRef<
+    Record<number, (node: HTMLElement | null) => void>
+  >({})
+
+  const onNode = React.useMemo(() => {
+    measureRefsRef.current = {}
+
+    return (node: HTMLElement | null, index: number) => {
+      if (!node) {
+        return
+      }
+
+      const { scrollOffset, measurements } = latestRef.current
+
+      const measuredSize = measureSizeRef.current(node, horizontal)
+      const item = measurements[index]
+
+      if (measuredSize !== item.size) {
+        pendingMeasuredCacheIndexesRef.current.push(index)
+
+        if (item.start < scrollOffset) {
+          const delta = measuredSize - item.size
+          latestRef.current.scrollOffset += delta
+
+          defaultScrollToFn(latestRef.current.scrollOffset)
+        }
+
+        setMeasuredCache((prev) => ({
+          ...prev,
+          [item.key]: measuredSize,
+        }))
+      }
+    }
+  }, [defaultScrollToFn, measureSizeRef, horizontal])
+
+  React.useMemo(() => {
+    const refsIndexes = Object.keys(measureRefsRef.current).map((i) =>
+      parseInt(i, 10),
+    )
+    refsIndexes.forEach((i) => {
+      if (!indexes.includes(i)) {
+        delete measureRefsRef.current[i]
+      }
+    })
+
+    for (let k = 0, len = indexes.length; k < len; k++) {
+      const index = indexes[k]
+
+      measureRefsRef.current[index] =
+        measureRefsRef.current[index] ||
+        ((node: HTMLElement | null) => {
+          onNode(node, index)
+        })
+    }
+  }, [indexes, onNode])
 
   const virtualItems: VirtualItem[] = React.useMemo(() => {
     const virtualItems = []
@@ -417,36 +473,14 @@ export const useVirtual = <T extends HTMLElement>({
 
       const item = {
         ...measurement,
-        measureRef: (el: HTMLElement | null) => {
-          if (el) {
-            const measuredSize = measureSizeRef.current(el, horizontal)
-
-            if (measuredSize !== item.size) {
-              const { scrollOffset } = latestRef.current
-
-              if (item.start < scrollOffset) {
-                const delta = measuredSize - item.size
-                latestRef.current.scrollOffset += delta
-
-                defaultScrollToFn(latestRef.current.scrollOffset)
-              }
-
-              pendingMeasuredCacheIndexesRef.current.push(i)
-
-              setMeasuredCache((prev) => ({
-                ...prev,
-                [item.key]: measuredSize,
-              }))
-            }
-          }
-        },
+        measureRef: measureRefsRef.current[i],
       }
 
       virtualItems.push(item)
     }
 
     return virtualItems
-  }, [indexes, defaultScrollToFn, horizontal, measurements, measureSizeRef])
+  }, [indexes, measurements])
 
   const scrollToOffset = React.useCallback(
     (
