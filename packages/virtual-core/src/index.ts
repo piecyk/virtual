@@ -24,7 +24,7 @@ export interface Range {
 
 type Key = number | string
 
-interface Item {
+export interface VirtualItem {
   key: Key
   index: number
   start: number
@@ -35,10 +35,6 @@ interface Item {
 interface Rect {
   width: number
   height: number
-}
-
-export interface VirtualItem<TItemElement> extends Item {
-  measureElement: (el: TItemElement | null) => void
 }
 
 //
@@ -212,8 +208,8 @@ export const elementScroll = (
 }
 
 export interface VirtualizerOptions<
-  TScrollElement = unknown,
-  TItemElement = unknown,
+  TScrollElement extends unknown,
+  TItemElement extends Element,
 > {
   // Required from the user
   count: number
@@ -253,24 +249,33 @@ export interface VirtualizerOptions<
   getItemKey?: (index: number) => Key
   rangeExtractor?: (range: Range) => number[]
   enableSmoothScroll?: boolean
+  itemIndexAttribute?: string
 }
 
-export class Virtualizer<TScrollElement = unknown, TItemElement = unknown> {
+export class Virtualizer<
+  TScrollElement extends unknown,
+  TItemElement extends Element,
+> {
   private unsubs: (void | (() => void))[] = []
   options!: Required<VirtualizerOptions<TScrollElement, TItemElement>>
   scrollElement: TScrollElement | null = null
-  private measurementsCache: Item[] = []
+  private measurementsCache: VirtualItem[] = []
   private itemMeasurementsCache: Record<Key, number> = {}
   private pendingMeasuredCacheIndexes: number[] = []
   private scrollRect: Rect
   private scrollOffset: number
   private destinationOffset: undefined | number
   private scrollCheckFrame!: ReturnType<typeof setTimeout>
-  private measureElementCache: Record<
-    number,
-    (measurableItem: TItemElement | null) => void
-  > = {}
-  private range: { startIndex: number; endIndex: number } = {
+  private measureElementCache: Record<string, TItemElement> = {}
+  private ro = new ResizeObserver((entries) => {
+    entries.forEach((entry) => {
+      const node = entry.target
+      if (node) {
+        this._measureElement(node as TItemElement, false)
+      }
+    })
+  })
+  range: { startIndex: number; endIndex: number } = {
     startIndex: 0,
     endIndex: 0,
   }
@@ -303,6 +308,7 @@ export class Virtualizer<TScrollElement = unknown, TItemElement = unknown> {
       onChange: () => {},
       measureElement,
       initialRect: { width: 0, height: 0 },
+      itemIndexAttribute: 'data-index',
       ...opts,
     }
   }
@@ -315,6 +321,8 @@ export class Virtualizer<TScrollElement = unknown, TItemElement = unknown> {
     this.unsubs.filter(Boolean).forEach((d) => d!())
     this.unsubs = []
     this.scrollElement = null
+    this.ro.disconnect()
+    this.measureElementCache = {}
   }
 
   _didMount = () => {
@@ -391,7 +399,7 @@ export class Virtualizer<TScrollElement = unknown, TItemElement = unknown> {
     },
   )
 
-  private calculateRange = memo(
+  calculateRange = memo(
     () => [this.getMeasurements(), this.getSize(), this.scrollOffset],
     (measurements, outerSize, scrollOffset) => {
       const range = calculateRange({
@@ -434,64 +442,85 @@ export class Virtualizer<TScrollElement = unknown, TItemElement = unknown> {
     },
   )
 
-  getVirtualItems = memo(
-    () => [
-      this.getIndexes(),
-      this.getMeasurements(),
-      this.options.measureElement,
-    ],
-    (indexes, measurements, measureElement) => {
-      const makeMeasureElement =
-        (index: number) => (measurableItem: TItemElement | null) => {
-          const item = this.measurementsCache[index]!
+  _measureElement = (node: TItemElement, _sync: boolean) => {
+    const attributeName = this.options.itemIndexAttribute
+    const indexStr = node.getAttribute(attributeName)
 
-          if (!measurableItem) {
-            return
-          }
+    if (!indexStr) {
+      console.warn(
+        `Missing attribute name '${attributeName}={index}' on measured element.`,
+      )
+      return
+    }
 
-          const measuredItemSize = measureElement(measurableItem, this)
-          const itemSize = this.itemMeasurementsCache[item.key] ?? item.size
+    const index = parseInt(indexStr, 10)
+    const item = this.measurementsCache[index]!
+    const key = String(item.key)
 
-          if (measuredItemSize !== itemSize) {
-            if (item.start < this.scrollOffset) {
-              if (process.env.NODE_ENV !== 'production' && this.options.debug) {
-                console.info('correction', measuredItemSize - itemSize)
-              }
+    const prevNode = this.measureElementCache[key]
 
-              if (!this.destinationOffset) {
-                this._scrollToOffset(
-                  this.scrollOffset + (measuredItemSize - itemSize),
-                  false,
-                )
-              }
-            }
+    if (!node.isConnected) {
+      if (prevNode) {
+        this.ro.unobserve(prevNode)
+        delete this.measureElementCache[key]
+      }
+      return
+    }
 
-            this.pendingMeasuredCacheIndexes.push(index)
-            this.itemMeasurementsCache = {
-              ...this.itemMeasurementsCache,
-              [item.key]: measuredItemSize,
-            }
-            this.notify()
-          }
+    if (!prevNode || prevNode !== node) {
+      if (prevNode) {
+        this.ro.unobserve(prevNode)
+      }
+      this.measureElementCache[key] = node
+      this.ro.observe(node)
+    }
+
+    const measuredItemSize = this.options.measureElement(node, this)
+
+    const itemSize = this.itemMeasurementsCache[item.key] ?? item.size
+
+    if (measuredItemSize !== itemSize) {
+      if (item.start < this.scrollOffset) {
+        if (process.env.NODE_ENV !== 'production' && this.options.debug) {
+          console.info('correction', measuredItemSize - itemSize)
         }
 
-      const virtualItems: VirtualItem<TItemElement>[] = []
+        if (!this.destinationOffset) {
+          this._scrollToOffset(
+            this.scrollOffset + (measuredItemSize - itemSize),
+            false,
+          )
+        }
+      }
 
-      const currentMeasureElements: typeof this.measureElementCache = {}
+      this.pendingMeasuredCacheIndexes.push(index)
+      this.itemMeasurementsCache = {
+        ...this.itemMeasurementsCache,
+        [item.key]: measuredItemSize,
+      }
+      this.notify()
+    }
+  }
+
+  measureElement = (node: TItemElement | null) => {
+    if (!node) {
+      return
+    }
+
+    this._measureElement(node, true)
+  }
+
+  getVirtualItems = memo(
+    () => [this.getIndexes(), this.getMeasurements()],
+    (indexes, measurements) => {
+      const virtualItems: VirtualItem[] = []
 
       for (let k = 0, len = indexes.length; k < len; k++) {
         const i = indexes[k]!
         const measurement = measurements[i]!
 
-        const item = {
-          ...measurement,
-          measureElement: (currentMeasureElements[i] =
-            this.measureElementCache[i] ?? makeMeasureElement(i)),
-        }
-        virtualItems.push(item)
+        virtualItems.push(measurement)
       }
-
-      this.measureElementCache = currentMeasureElements
 
       return virtualItems
     },
@@ -638,7 +667,7 @@ function calculateRange({
   outerSize,
   scrollOffset,
 }: {
-  measurements: Item[]
+  measurements: VirtualItem[]
   outerSize: number
   scrollOffset: number
 }) {
