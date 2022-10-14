@@ -153,7 +153,7 @@ function GridVirtualizerDynamic({ rows, columns }) {
     count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 125,
-    itemIndexAttribute: 'data-row-index',
+    indexAttribute: 'data-row-index',
   })
 
   const columnVirtualizer = useVirtualizer({
@@ -161,7 +161,7 @@ function GridVirtualizerDynamic({ rows, columns }) {
     count: columns.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 125,
-    itemIndexAttribute: 'data-col-index',
+    indexAttribute: 'data-col-index',
   })
 
   const [show, setShow] = React.useState(true)

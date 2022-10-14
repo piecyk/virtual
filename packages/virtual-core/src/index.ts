@@ -249,7 +249,7 @@ export interface VirtualizerOptions<
   getItemKey?: (index: number) => Key
   rangeExtractor?: (range: Range) => number[]
   enableSmoothScroll?: boolean
-  itemIndexAttribute?: string
+  indexAttribute?: string
 }
 
 export class Virtualizer<
@@ -306,7 +306,7 @@ export class Virtualizer<
       onChange: () => {},
       measureElement,
       initialRect: { width: 0, height: 0 },
-      itemIndexAttribute: 'data-index',
+      indexAttribute: 'data-index',
       ...opts,
     }
   }
@@ -443,7 +443,7 @@ export class Virtualizer<
   )
 
   _measureElement = (node: TItemElement, _sync: boolean) => {
-    const attributeName = this.options.itemIndexAttribute
+    const attributeName = this.options.indexAttribute
     const indexStr = node.getAttribute(attributeName)
 
     if (!indexStr) {
