@@ -264,6 +264,7 @@ export class Virtualizer<
   private pendingMeasuredCacheIndexes: number[] = []
   private scrollRect: Rect
   private scrollOffset: number
+  private scrollDelta: number = 0
   private destinationOffset: undefined | number
   private scrollCheckFrame!: ReturnType<typeof setTimeout>
   private measureElementCache: Record<string, TItemElement> = {}
@@ -338,7 +339,7 @@ export class Virtualizer<
       this.cleanup()
 
       this.scrollElement = scrollElement
-      this._scrollToOffset(this.scrollOffset, false)
+      this._scrollToOffset(this.scrollOffset, false, true)
 
       this.unsubs.push(
         this.options.observeElementRect(this, (rect) => {
@@ -350,6 +351,8 @@ export class Virtualizer<
       this.unsubs.push(
         this.options.observeElementOffset(this, (offset) => {
           this.scrollOffset = offset
+          this.scrollDelta = 0
+
           this.calculateRange()
         }),
       )
@@ -486,8 +489,11 @@ export class Virtualizer<
         }
 
         if (!this.destinationOffset) {
+          this.scrollDelta += measuredItemSize - itemSize
+
           this._scrollToOffset(
-            this.scrollOffset + (measuredItemSize - itemSize),
+            this.scrollOffset + this.scrollDelta,
+            false,
             false,
           )
         }
@@ -551,11 +557,11 @@ export class Virtualizer<
     }
 
     if (align === 'start') {
-      this._scrollToOffset(toOffset, smoothScroll)
+      this._scrollToOffset(toOffset, smoothScroll, true)
     } else if (align === 'end') {
-      this._scrollToOffset(toOffset - size, smoothScroll)
+      this._scrollToOffset(toOffset - size, smoothScroll, true)
     } else if (align === 'center') {
-      this._scrollToOffset(toOffset - size / 2, smoothScroll)
+      this._scrollToOffset(toOffset - size / 2, smoothScroll, true)
     }
   }
 
@@ -603,10 +609,16 @@ export class Virtualizer<
     (this.getMeasurements()[this.options.count - 1]?.end ||
       this.options.paddingStart) + this.options.paddingEnd
 
-  private _scrollToOffset = (offset: number, canSmooth: boolean) => {
+  private _scrollToOffset = (
+    offset: number,
+    canSmooth: boolean,
+    requested: boolean,
+  ) => {
     clearTimeout(this.scrollCheckFrame)
 
-    this.destinationOffset = offset
+    if (requested) {
+      this.destinationOffset = offset
+    }
     this.options.scrollToFn(offset, canSmooth, this)
 
     let scrollCheckFrame: ReturnType<typeof setTimeout>
