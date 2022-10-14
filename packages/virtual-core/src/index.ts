@@ -270,10 +270,7 @@ export class Virtualizer<
   private measureElementCache: Record<string, TItemElement> = {}
   private ro = new ResizeObserver((entries) => {
     entries.forEach((entry) => {
-      const node = entry.target
-      if (node) {
-        this._measureElement(node as TItemElement, false)
-      }
+      this._measureElement(entry.target as TItemElement, false)
     })
   })
   range: { startIndex: number; endIndex: number } = {
@@ -567,11 +564,7 @@ export class Virtualizer<
 
   scrollToIndex = (
     index: number,
-    {
-      align = 'auto',
-      smoothScroll = this.options.enableSmoothScroll,
-      ...rest
-    }: ScrollToIndexOptions = {},
+    { align = 'auto', ...rest }: ScrollToIndexOptions = {},
   ) => {
     const measurements = this.getMeasurements()
     const offset = this.scrollOffset
@@ -602,7 +595,7 @@ export class Virtualizer<
         ? measurement.end + this.options.scrollPaddingEnd
         : measurement.start - this.options.scrollPaddingStart
 
-    this.scrollToOffset(toOffset, { align, smoothScroll, ...rest })
+    this.scrollToOffset(toOffset, { align, ...rest })
   }
 
   getTotalSize = () =>
