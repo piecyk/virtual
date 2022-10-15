@@ -144,7 +144,10 @@ const createOffsetObserver = (mode: ObserverMode) => {
     let prevY: number = instance.scrollElement[propY]
 
     const scroll = () => {
-      cb(instance.scrollElement[instance.options.horizontal ? propX : propY])
+      const offset =
+        instance.scrollElement[instance.options.horizontal ? propX : propY]
+
+      cb(Math.max(0, offset - instance.options.scrollMargin))
     }
 
     scroll()
@@ -176,33 +179,37 @@ const createOffsetObserver = (mode: ObserverMode) => {
 export const observeElementOffset = createOffsetObserver('element')
 export const observeWindowOffset = createOffsetObserver('window')
 
-export const measureElement = (
-  element: unknown,
+export const measureElement = <TItemElement extends Element>(
+  element: TItemElement,
   instance: Virtualizer<any, any>,
 ) => {
-  return (element as Element).getBoundingClientRect()[
+  return element.getBoundingClientRect()[
     instance.options.horizontal ? 'width' : 'height'
   ]
 }
 
 export const windowScroll = (
   offset: number,
-  canSmooth: boolean,
+  { canSmooth, sync }: { canSmooth: boolean; sync: boolean },
   instance: Virtualizer<any, any>,
 ) => {
+  const toOffset = sync ? offset : offset + instance.options.scrollMargin
+
   ;(instance.scrollElement as Window)?.scrollTo?.({
-    [instance.options.horizontal ? 'left' : 'top']: offset,
+    [instance.options.horizontal ? 'left' : 'top']: toOffset,
     behavior: canSmooth ? 'smooth' : undefined,
   })
 }
 
 export const elementScroll = (
   offset: number,
-  canSmooth: boolean,
+  { canSmooth, sync }: { canSmooth: boolean; sync: boolean },
   instance: Virtualizer<any, any>,
 ) => {
+  const toOffset = sync ? offset : offset + instance.options.scrollMargin
+
   ;(instance.scrollElement as Element)?.scrollTo?.({
-    [instance.options.horizontal ? 'left' : 'top']: offset,
+    [instance.options.horizontal ? 'left' : 'top']: toOffset,
     behavior: canSmooth ? 'smooth' : undefined,
   })
 }
@@ -219,7 +226,7 @@ export interface VirtualizerOptions<
   // Required from the framework adapter (but can be overridden)
   scrollToFn: (
     offset: number,
-    canSmooth: boolean,
+    options: { canSmooth: boolean; sync: boolean },
     instance: Virtualizer<TScrollElement, TItemElement>,
   ) => void
   observeElementRect: (
@@ -250,6 +257,7 @@ export interface VirtualizerOptions<
   rangeExtractor?: (range: Range) => number[]
   enableSmoothScroll?: boolean
   indexAttribute?: string
+  scrollMargin?: number
 }
 
 export class Virtualizer<
@@ -308,6 +316,7 @@ export class Virtualizer<
       measureElement,
       initialRect: { width: 0, height: 0 },
       indexAttribute: 'data-index',
+      scrollMargin: 0,
       ...opts,
     }
   }
@@ -337,7 +346,11 @@ export class Virtualizer<
       this.cleanup()
 
       this.scrollElement = scrollElement
-      this._scrollToOffset(this.scrollOffset, false, true)
+      this._scrollToOffset(this.scrollOffset, {
+        canSmooth: false,
+        requested: true,
+        sync: true,
+      })
 
       this.unsubs.push(
         this.options.observeElementRect(this, (rect) => {
@@ -497,11 +510,11 @@ export class Virtualizer<
         if (!this.destinationOffset) {
           this.scrollDelta += measuredItemSize - itemSize
 
-          this._scrollToOffset(
-            this.scrollOffset + this.scrollDelta,
-            false,
-            false,
-          )
+          this._scrollToOffset(this.scrollOffset + this.scrollDelta, {
+            canSmooth: false,
+            requested: false,
+            sync: false,
+          })
         }
       }
 
@@ -562,12 +575,17 @@ export class Virtualizer<
       }
     }
 
+    const options = {
+      canSmooth: smoothScroll,
+      requested: true,
+      sync: false,
+    }
     if (align === 'start') {
-      this._scrollToOffset(toOffset, smoothScroll, true)
+      this._scrollToOffset(toOffset, options)
     } else if (align === 'end') {
-      this._scrollToOffset(toOffset - size, smoothScroll, true)
+      this._scrollToOffset(toOffset - size, options)
     } else if (align === 'center') {
-      this._scrollToOffset(toOffset - size / 2, smoothScroll, true)
+      this._scrollToOffset(toOffset - size / 2, options)
     }
   }
 
@@ -613,15 +631,18 @@ export class Virtualizer<
 
   private _scrollToOffset = (
     offset: number,
-    canSmooth: boolean,
-    requested: boolean,
+    {
+      canSmooth,
+      requested,
+      sync,
+    }: { canSmooth: boolean; requested: boolean; sync: boolean },
   ) => {
     clearTimeout(this.scrollCheckFrame)
 
     if (requested) {
       this.destinationOffset = offset
     }
-    this.options.scrollToFn(offset, canSmooth, this)
+    this.options.scrollToFn(offset, { canSmooth, sync }, this)
 
     let scrollCheckFrame: ReturnType<typeof setTimeout>
 
