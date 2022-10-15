@@ -268,6 +268,7 @@ export class Virtualizer<
   private destinationOffset: undefined | number
   private scrollCheckFrame!: ReturnType<typeof setTimeout>
   private measureElementCache: Record<string, TItemElement> = {}
+  private afterFirstResize: Record<string, true> = {}
   private ro = new ResizeObserver((entries) => {
     entries.forEach((entry) => {
       this._measureElement(entry.target as TItemElement, false)
@@ -442,7 +443,7 @@ export class Virtualizer<
     },
   )
 
-  _measureElement = (node: TItemElement, _sync: boolean) => {
+  _measureElement = (node: TItemElement, sync: boolean) => {
     const attributeName = this.options.indexAttribute
     const indexStr = node.getAttribute(attributeName)
 
@@ -463,7 +464,13 @@ export class Virtualizer<
       if (prevNode) {
         this.ro.unobserve(prevNode)
         delete this.measureElementCache[key]
+        delete this.afterFirstResize[key]
       }
+      return
+    }
+
+    if (!sync && !this.afterFirstResize[key]) {
+      this.afterFirstResize[key] = true
       return
     }
 
@@ -471,8 +478,10 @@ export class Virtualizer<
       if (prevNode) {
         this.ro.unobserve(prevNode)
       }
-      this.measureElementCache[key] = node
-      this.ro.observe(node)
+      requestAnimationFrame(() => {
+        this.measureElementCache[key] = node
+        this.ro.observe(node)
+      })
     }
 
     const measuredItemSize = this.options.measureElement(node, this)
