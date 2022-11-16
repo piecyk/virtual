@@ -430,14 +430,21 @@ export class Virtualizer<
 
       for (let i = min; i < count; i++) {
         const key = getItemKey(i)
-        const measuredSize = measurementsCache[key]
+
         const start = measurements[i - 1]
           ? measurements[i - 1]!.end
           : paddingStart
+
+        const measuredSize = measurementsCache[key]
+        const node = this.measureElementCache[key]
+
         const size =
           typeof measuredSize === 'number'
             ? measuredSize
+            : node
+            ? this.options.measureElement(node, this)
             : this.options.estimateSize(i)
+
         const end = start + size
         measurements[i] = { index: i, start, size, end, key }
       }
