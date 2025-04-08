@@ -28,8 +28,8 @@ export interface Range {
 
 type Key = number | string | bigint
 
-export interface VirtualItem {
-  key: Key
+export interface VirtualItem<TKey extends Key> {
+  key: TKey
   index: number
   start: number
   end: number
@@ -60,7 +60,7 @@ export const defaultRangeExtractor = (range: Range) => {
 }
 
 export const observeElementRect = <T extends Element>(
-  instance: Virtualizer<T, any>,
+  instance: Virtualizer<T, any, any>,
   cb: (rect: Rect) => void,
 ) => {
   const element = instance.scrollElement
@@ -113,7 +113,7 @@ const addEventListenerOptions = {
 }
 
 export const observeWindowRect = (
-  instance: Virtualizer<Window, any>,
+  instance: Virtualizer<Window, any, any>,
   cb: (rect: Rect) => void,
 ) => {
   const element = instance.scrollElement
@@ -139,7 +139,7 @@ const supportsScrollend =
 type ObserveOffsetCallBack = (offset: number, isScrolling: boolean) => void
 
 export const observeElementOffset = <T extends Element>(
-  instance: Virtualizer<T, any>,
+  instance: Virtualizer<T, any, any>,
   cb: ObserveOffsetCallBack,
 ) => {
   const element = instance.scrollElement
@@ -190,7 +190,7 @@ export const observeElementOffset = <T extends Element>(
 }
 
 export const observeWindowOffset = (
-  instance: Virtualizer<Window, any>,
+  instance: Virtualizer<Window, any, any>,
   cb: ObserveOffsetCallBack,
 ) => {
   const element = instance.scrollElement
@@ -240,7 +240,7 @@ export const observeWindowOffset = (
 export const measureElement = <TItemElement extends Element>(
   element: TItemElement,
   entry: ResizeObserverEntry | undefined,
-  instance: Virtualizer<any, TItemElement>,
+  instance: Virtualizer<any, TItemElement, any>,
 ) => {
   if (entry?.borderBoxSize) {
     const box = entry.borderBoxSize[0]
@@ -264,7 +264,7 @@ export const windowScroll = <T extends Window>(
     adjustments = 0,
     behavior,
   }: { adjustments?: number; behavior?: ScrollBehavior },
-  instance: Virtualizer<T, any>,
+  instance: Virtualizer<T, any, any>,
 ) => {
   const toOffset = offset + adjustments
 
@@ -280,7 +280,7 @@ export const elementScroll = <T extends Element>(
     adjustments = 0,
     behavior,
   }: { adjustments?: number; behavior?: ScrollBehavior },
-  instance: Virtualizer<T, any>,
+  instance: Virtualizer<T, any, any>,
 ) => {
   const toOffset = offset + adjustments
 
@@ -293,6 +293,7 @@ export const elementScroll = <T extends Element>(
 export interface VirtualizerOptions<
   TScrollElement extends Element | Window,
   TItemElement extends Element,
+  TKey extends Key,
 > {
   // Required from the user
   count: number
@@ -303,27 +304,27 @@ export interface VirtualizerOptions<
   scrollToFn: (
     offset: number,
     options: { adjustments?: number; behavior?: ScrollBehavior },
-    instance: Virtualizer<TScrollElement, TItemElement>,
+    instance: Virtualizer<TScrollElement, TItemElement, TKey>,
   ) => void
   observeElementRect: (
-    instance: Virtualizer<TScrollElement, TItemElement>,
+    instance: Virtualizer<TScrollElement, TItemElement, TKey>,
     cb: (rect: Rect) => void,
   ) => void | (() => void)
   observeElementOffset: (
-    instance: Virtualizer<TScrollElement, TItemElement>,
+    instance: Virtualizer<TScrollElement, TItemElement, TKey>,
     cb: ObserveOffsetCallBack,
   ) => void | (() => void)
   // Optional
   debug?: boolean
   initialRect?: Rect
   onChange?: (
-    instance: Virtualizer<TScrollElement, TItemElement>,
+    instance: Virtualizer<TScrollElement, TItemElement, TKey>,
     sync: boolean,
   ) => void
   measureElement?: (
     element: TItemElement,
     entry: ResizeObserverEntry | undefined,
-    instance: Virtualizer<TScrollElement, TItemElement>,
+    instance: Virtualizer<TScrollElement, TItemElement, TKey>,
   ) => number
   overscan?: number
   horizontal?: boolean
@@ -332,12 +333,12 @@ export interface VirtualizerOptions<
   scrollPaddingStart?: number
   scrollPaddingEnd?: number
   initialOffset?: number | (() => number)
-  getItemKey?: (index: number) => Key
+  getItemKey?: (index: number) => TKey
   rangeExtractor?: (range: Range) => Array<number>
   scrollMargin?: number
   gap?: number
   indexAttribute?: string
-  initialMeasurementsCache?: Array<VirtualItem>
+  initialMeasurementsCache?: Array<VirtualItem<TKey>>
   lanes?: number
   isScrollingResetDelay?: number
   useScrollendEvent?: boolean
@@ -349,14 +350,15 @@ export interface VirtualizerOptions<
 export class Virtualizer<
   TScrollElement extends Element | Window,
   TItemElement extends Element,
+  TKey extends Key,
 > {
   private unsubs: Array<void | (() => void)> = []
-  options!: Required<VirtualizerOptions<TScrollElement, TItemElement>>
+  options!: Required<VirtualizerOptions<TScrollElement, TItemElement, TKey>>
   scrollElement: TScrollElement | null = null
   targetWindow: (Window & typeof globalThis) | null = null
   isScrolling = false
   private scrollToIndexTimeoutId: number | null = null
-  measurementsCache: Array<VirtualItem> = []
+  measurementsCache: Array<VirtualItem<TKey>> = []
   private itemSizeCache = new Map<Key, number>()
   private pendingMeasuredCacheIndexes: Array<number> = []
   scrollRect: Rect | null = null
@@ -366,9 +368,9 @@ export class Virtualizer<
   shouldAdjustScrollPositionOnItemSizeChange:
     | undefined
     | ((
-        item: VirtualItem,
+        item: VirtualItem<TKey>,
         delta: number,
-        instance: Virtualizer<TScrollElement, TItemElement>,
+        instance: Virtualizer<TScrollElement, TItemElement, TKey>,
       ) => boolean)
   elementsCache = new Map<Key, TItemElement>()
   private observer = (() => {
@@ -407,11 +409,13 @@ export class Virtualizer<
   })()
   range: { startIndex: number; endIndex: number } | null = null
 
-  constructor(opts: VirtualizerOptions<TScrollElement, TItemElement>) {
+  constructor(opts: VirtualizerOptions<TScrollElement, TItemElement, TKey>) {
     this.setOptions(opts)
   }
 
-  setOptions = (opts: VirtualizerOptions<TScrollElement, TItemElement>) => {
+  setOptions = (
+    opts: VirtualizerOptions<TScrollElement, TItemElement, TKey>,
+  ) => {
     Object.entries(opts).forEach(([key, value]) => {
       if (typeof value === 'undefined') delete (opts as any)[key]
     })
@@ -567,11 +571,11 @@ export class Virtualizer<
   }
 
   private getFurthestMeasurement = (
-    measurements: Array<VirtualItem>,
+    measurements: Array<VirtualItem<TKey>>,
     index: number,
   ) => {
     const furthestMeasurementsFound = new Map<number, true>()
-    const furthestMeasurements = new Map<number, VirtualItem>()
+    const furthestMeasurements = new Map<number, VirtualItem<TKey>>()
     for (let m = index - 1; m >= 0; m--) {
       const measurement = measurements[m]!
 
@@ -846,7 +850,7 @@ export class Virtualizer<
   getVirtualItems = memo(
     () => [this.getVirtualIndexes(), this.getMeasurements()],
     (indexes, measurements) => {
-      const virtualItems: Array<VirtualItem> = []
+      const virtualItems: Array<VirtualItem<TKey>> = []
 
       for (let k = 0, len = indexes.length; k < len; k++) {
         const i = indexes[k]!
@@ -1109,13 +1113,13 @@ const findNearestBinarySearch = (
   }
 }
 
-function calculateRange({
+function calculateRange<TKey extends Key>({
   measurements,
   outerSize,
   scrollOffset,
   lanes,
 }: {
-  measurements: Array<VirtualItem>
+  measurements: Array<VirtualItem<TKey>>
   outerSize: number
   scrollOffset: number
   lanes: number
