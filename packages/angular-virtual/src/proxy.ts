@@ -4,13 +4,13 @@ import type { Virtualizer } from '@tanstack/virtual-core'
 import type { AngularVirtualizer } from './types'
 
 export function proxyVirtualizer<
-  V extends Virtualizer<any, any>,
-  S extends Element | Window = V extends Virtualizer<infer U, any> ? U : never,
-  I extends Element = V extends Virtualizer<any, infer U> ? U : never,
+  V extends Virtualizer<any, any, any>,
+  S extends Element | Window = V extends Virtualizer<infer U, any, any> ? U : never,
+  I extends Element = V extends Virtualizer<any, infer U, any> ? U : never,
 >(
   virtualizerSignal: WritableSignal<V>,
   lazyInit: () => V,
-): AngularVirtualizer<S, I> {
+): AngularVirtualizer<S, I, any> {
   return new Proxy(virtualizerSignal, {
     apply() {
       return virtualizerSignal()
@@ -86,10 +86,10 @@ export function proxyVirtualizer<
         configurable: true,
       }
     },
-  }) as unknown as AngularVirtualizer<S, I>
+  }) as unknown as AngularVirtualizer<S, I, any>
 }
 
-function toComputed<V extends Virtualizer<any, any>>(
+function toComputed<V extends Virtualizer<any, any, any>>(
   signal: Signal<V>,
   fn: Function,
 ) {

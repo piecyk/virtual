@@ -19,7 +19,11 @@ import {
 } from '@tanstack/virtual-core'
 import { proxyVirtualizer } from './proxy'
 import type { ElementRef, Signal } from '@angular/core'
-import type { PartialKeys, VirtualizerOptions } from '@tanstack/virtual-core'
+import type {
+  PartialKeys,
+  VirtualKey,
+  VirtualizerOptions,
+} from '@tanstack/virtual-core'
 import type { AngularVirtualizer } from './types'
 
 export * from '@tanstack/virtual-core'
@@ -28,10 +32,11 @@ export * from './types'
 function createVirtualizerBase<
   TScrollElement extends Element | Window,
   TItemElement extends Element,
+  TKey extends VirtualKey,
 >(
-  options: Signal<VirtualizerOptions<TScrollElement, TItemElement>>,
-): AngularVirtualizer<TScrollElement, TItemElement> {
-  let virtualizer: Virtualizer<TScrollElement, TItemElement>
+  options: Signal<VirtualizerOptions<TScrollElement, TItemElement, TKey>>,
+): AngularVirtualizer<TScrollElement, TItemElement, TKey> {
+  let virtualizer: Virtualizer<TScrollElement, TItemElement, TKey>
   function lazyInit() {
     virtualizer ??= new Virtualizer(options())
     return virtualizer
@@ -84,14 +89,18 @@ function createVirtualizerBase<
 export function injectVirtualizer<
   TScrollElement extends Element,
   TItemElement extends Element,
+  TKey extends VirtualKey,
 >(
   options: () => PartialKeys<
-    Omit<VirtualizerOptions<TScrollElement, TItemElement>, 'getScrollElement'>,
+    Omit<
+      VirtualizerOptions<TScrollElement, TItemElement, TKey>,
+      'getScrollElement'
+    >,
     'observeElementRect' | 'observeElementOffset' | 'scrollToFn'
   > & {
     scrollElement: ElementRef<TScrollElement> | TScrollElement | undefined
   },
-): AngularVirtualizer<TScrollElement, TItemElement> {
+): AngularVirtualizer<TScrollElement, TItemElement, TKey> {
   const resolvedOptions = computed(() => {
     return {
       observeElementRect: observeElementRect,
@@ -108,7 +117,9 @@ export function injectVirtualizer<
       ...options(),
     }
   })
-  return createVirtualizerBase<TScrollElement, TItemElement>(resolvedOptions)
+  return createVirtualizerBase<TScrollElement, TItemElement, TKey>(
+    resolvedOptions,
+  )
 }
 
 function isElementRef<T extends Element>(
@@ -117,15 +128,18 @@ function isElementRef<T extends Element>(
   return elementOrRef != null && 'nativeElement' in elementOrRef
 }
 
-export function injectWindowVirtualizer<TItemElement extends Element>(
+export function injectWindowVirtualizer<
+  TItemElement extends Element,
+  TKey extends VirtualKey,
+>(
   options: () => PartialKeys<
-    VirtualizerOptions<Window, TItemElement>,
+    VirtualizerOptions<Window, TItemElement, TKey>,
     | 'getScrollElement'
     | 'observeElementRect'
     | 'observeElementOffset'
     | 'scrollToFn'
   >,
-): AngularVirtualizer<Window, TItemElement> {
+): AngularVirtualizer<Window, TItemElement, TKey> {
   const resolvedOptions = computed(() => {
     return {
       getScrollElement: () => (typeof document !== 'undefined' ? window : null),
@@ -137,5 +151,5 @@ export function injectWindowVirtualizer<TItemElement extends Element>(
       ...options(),
     }
   })
-  return createVirtualizerBase<Window, TItemElement>(resolvedOptions)
+  return createVirtualizerBase<Window, TItemElement, TKey>(resolvedOptions)
 }

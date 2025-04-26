@@ -26,9 +26,9 @@ export interface Range {
   count: number
 }
 
-type Key = number | string | bigint
+export type VirtualKey = number | string | bigint
 
-export interface VirtualItem<TKey extends Key> {
+export interface VirtualItem<TKey extends VirtualKey> {
   key: TKey
   index: number
   start: number
@@ -44,7 +44,9 @@ export interface Rect {
 
 //
 
-export const defaultKeyExtractor = (index: number) => index
+export const defaultKeyExtractor = <TKey extends VirtualKey>(
+  index: number,
+): TKey => index as unknown as TKey
 
 export const defaultRangeExtractor = (range: Range) => {
   const start = Math.max(range.startIndex - range.overscan, 0)
@@ -293,7 +295,7 @@ export const elementScroll = <T extends Element>(
 export interface VirtualizerOptions<
   TScrollElement extends Element | Window,
   TItemElement extends Element,
-  TKey extends Key,
+  TKey extends VirtualKey,
 > {
   // Required from the user
   count: number
@@ -350,7 +352,7 @@ export interface VirtualizerOptions<
 export class Virtualizer<
   TScrollElement extends Element | Window,
   TItemElement extends Element,
-  TKey extends Key,
+  TKey extends VirtualKey,
 > {
   private unsubs: Array<void | (() => void)> = []
   options!: Required<VirtualizerOptions<TScrollElement, TItemElement, TKey>>
@@ -359,7 +361,7 @@ export class Virtualizer<
   isScrolling = false
   private scrollToIndexTimeoutId: number | null = null
   measurementsCache: Array<VirtualItem<TKey>> = []
-  private itemSizeCache = new Map<Key, number>()
+  private itemSizeCache = new Map<TKey, number>()
   private pendingMeasuredCacheIndexes: Array<number> = []
   scrollRect: Rect | null = null
   scrollOffset: number | null = null
@@ -372,7 +374,7 @@ export class Virtualizer<
         delta: number,
         instance: Virtualizer<TScrollElement, TItemElement, TKey>,
       ) => boolean)
-  elementsCache = new Map<Key, TItemElement>()
+  elementsCache = new Map<TKey, TItemElement>()
   private observer = (() => {
     let _ro: ResizeObserver | null = null
 
@@ -1113,7 +1115,7 @@ const findNearestBinarySearch = (
   }
 }
 
-function calculateRange<TKey extends Key>({
+function calculateRange<TKey extends VirtualKey>({
   measurements,
   outerSize,
   scrollOffset,
